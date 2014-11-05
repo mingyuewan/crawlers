@@ -127,12 +127,12 @@ def download_movie(surl, video_size, target):
         trunk_start_time = time.time()
         real_size = download_video(browser, download_url, of)
         trunk_time = time.time() - trunk_start_time
-        print '%d/%d in %dK/s\r' % (download_size, video_size, int((real_size/trunk_time)/1024)),
+        print '[%%%02d] %d/%d in %dKB/s\r' % (download_size*100/video_size, download_size, video_size, int((real_size/trunk_time)/1024)),
         sys.stdout.flush()
         download_size = download_size + real_size
     of.close()
     end_time = time.time()
-    print '\nTime:%d Speed:%d' % (int(end_time - start_time), (video_size/1024.0)/(end_time - start_time))
+    print '\nTime:%d Speed:%dKB/s' % (int(end_time - start_time), (video_size/1024.0)/(end_time - start_time))
 
 def get_suburl(browser, page_url, target_dir):
     print 'GET', page_url
