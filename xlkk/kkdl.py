@@ -38,14 +38,14 @@ def to_dict(json_object):
     return eval(json_object, global_dict())
 
 def random1(length):
-    chars = ['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z']
+    chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
     selected = []
     while len(selected) < length:
         selected.append(chars[random.randint(0, len(chars)-1)])
     return ''.join(selected).upper()
 
 def random2(length):
-    chars = ['6', '8', '9', 'X', 'L']
+    chars = '689XL'
     selected = []
     while len(selected) < length:
         selected.append(chars[random.randint(0, len(chars)-1)])
@@ -120,16 +120,16 @@ def download_movie(surl, video_size, target):
         if to_pos >= video_size:
             to_pos = video_size - 1
         tfn = '%d-%d' % (from_pos, to_pos)
-        path = os.path.join(target_dir, tfn)
+        # path = os.path.join(target_dir, tfn)
         browser.addheaders = [('User-Agent', USER_AGENT), ('Referer', referer), ('Range', 'bytes=%s' % tfn)]
         keya = md5('xl_mp43651%s%d%d%s' % (cid, from_pos, to_pos, ts))
         download_url = '%s&keya=%s&keyb=%d&ver=%s' % (stream_url, keya, ts, AGENT_VER)
         trunk_start_time = time.time()
         real_size = download_video(browser, download_url, of)
         trunk_time = time.time() - trunk_start_time
+        download_size = download_size + real_size
         print '[%%%02d] %d/%d in %dKB/s\r' % (download_size*100/video_size, download_size, video_size, int((real_size/trunk_time)/1024)),
         sys.stdout.flush()
-        download_size = download_size + real_size
     of.close()
     end_time = time.time()
     print '\nTime:%d Speed:%dKB/s' % (int(end_time - start_time), (video_size/1024.0)/(end_time - start_time))
