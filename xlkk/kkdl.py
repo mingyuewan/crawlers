@@ -216,7 +216,7 @@ def get_suburl(browser, page_url, target_dir):
 def kkdl(page_url, target_dir):
     browser = Browser()
     browser.set_handle_robots(False)
-    browser.addbeaders = [('User-Agent', USER_AGENT)]
+    browser.addheaders = [('User-Agent', USER_AGENT)]
     get_suburl(browser, page_url, target_dir)
 
 if __name__ == '__main__':
