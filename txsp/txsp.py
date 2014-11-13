@@ -109,10 +109,12 @@ def get_videoinfo(browser, target_dir, vid):
         'platform': PLAYER_PLATFORM,
         'charge': 0,
         'ran': random.random(),
-        'speed': random.randint(2048, 8096),
+        'speed': 8096, #random.randint(2048, 8096),
         'pid': player_pid,
         'appver': PLAYER_VERSION,
         'fhdswitch': 0,
+        'defn': 'shd',  # default to super hd
+        'defaultfmt': 'shd', # default to super hd
         'fp2p': 1,
         'utype': 0,
         'cKey': load_key(browser),
@@ -123,7 +125,7 @@ def get_videoinfo(browser, target_dir, vid):
     resp = browser.open('http://vv.video.qq.com/getvinfo', data=form)
     vinfo = resp.read()
     # print vinfo
-    open('a.xml', 'wb').write(vinfo)
+    # open('a.xml', 'wb').write(vinfo)
     tree = etree.fromstring(vinfo)
 
     fmt_id = None
@@ -132,6 +134,8 @@ def get_videoinfo(browser, target_dir, vid):
     for fmt in tree.xpath('/root/fl/fi'):
         sl = int(fmt.xpath('sl/text()')[0])
         if sl:
+#        name = fmt.xpath('name/text()')[0]
+#        if name == 'shd':
             fmt_id = fmt.xpath('id/text()')[0]
             fmt_name = fmt.xpath('name/text()')[0]
             fmt_br = fmt.xpath('br/text()')[0]
