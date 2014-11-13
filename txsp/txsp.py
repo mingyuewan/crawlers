@@ -11,7 +11,7 @@ import time
 import urllib
 import uuid
 
-from klib import ccc
+from qqtea import ccc
 
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:33.0) Gecko/20100101 Firefox/33.0'
 SWF_REFERER = 'http://imgcache.qq.com/tencentvideo_v1/player/TencentPlayer.swf?max_age=86400&v=20140917'
@@ -54,10 +54,9 @@ def get_user_agent(vid, fmt):
 def get_from(url):
     return 'v1001'
 
-def download_movie(vid, url, fmt, fmt_name, type_name, level, br, sp, vkey):
+def download_clip(target_file, size, user_agent, url, fmt_name, type_name, br, sp, vkey, level):
     browser = Browser()
     browser.set_handle_robots(False)
-    user_agent = 'Mozilla/5.0 TencentPlayerVod_1.1.91 tencent_-%s-%s' % (vid, fmt)
 
     form = {
         'stdfrom': get_from(url),
@@ -75,16 +74,31 @@ def download_movie(vid, url, fmt, fmt_name, type_name, level, br, sp, vkey):
         ('User-Agent', user_agent),
         ('x-flash-version', 'MAC 15,0,0,189')]
 
-    # print query_string
     resp = browser.open('%s?%s' % (url, query_string))
-    of = open('t', 'wb')
+
+    start_time = time.time()
+    downloaded_size = 0
+    of = open(target_file, 'wb')
     while True:
-        data = resp.read(1024)
+        st = time.time()
+        data = resp.read(128*1024)
         if not data:
             break
         of.write(data)
+        downloaded_size += len(data)
+        speed = (len(data)/1024)/(time.time() - st)
+        percent = (downloaded_size * 100)/size
+        print '[%%%d] %dKB/s %d/%d\r' % (percent, speed, downloaded_size, size),
+        sys.stdout.flush()
 
-def get_videoinfo(browser, vid):
+    time_spent = time.time() - start_time
+    speed = (downloaded_size/1024) / time_spent
+    
+    print 'Download %d bytes in %d seconds, speed %dKB/s' % (downloaded_size, time_spent, speed)
+
+    of.close()
+
+def get_videoinfo(browser, target_dir, vid):
     browser.addheaders = [('User-Agent', USER_AGENT), ('Referer', SWF_REFERER)]
     player_pid = uuid.uuid4().hex.upper()
     params = {
@@ -109,56 +123,87 @@ def get_videoinfo(browser, vid):
     resp = browser.open('http://vv.video.qq.com/getvinfo', data=form)
     vinfo = resp.read()
     # print vinfo
+    open('a.xml', 'wb').write(vinfo)
     tree = etree.fromstring(vinfo)
 
     fmt_id = None
     fmt_name = None
+    fmt_br = None
     for fmt in tree.xpath('/root/fl/fi'):
         sl = int(fmt.xpath('sl/text()')[0])
         if sl:
             fmt_id = fmt.xpath('id/text()')[0]
             fmt_name = fmt.xpath('name/text()')[0]
+            fmt_br = fmt.xpath('br/text()')[0]
 
-    assert fmt_id and fmt_name
+    assert fmt_id
 
-    filename = tree.xpath('/root/vl/vi/fn/text()')[0]
-    fclip = tree.xpath('/root/vl/vi/fclip/text()')[0]
-    fs = tree.xpath('/root/vl/vi/fs/text()')[0]
+    video = tree.xpath('/root/vl/vi')[0]
+    filename = video.xpath('fn/text()')[0]
+    filesize = video.xpath('fs/text()')[0]
 
-    fps = os.path.splitext(filename)
-    filename = '%s.%s%s' % (fps[0], fclip, fps[1])
+    cdn = video.xpath('ul/ui')[0]
+    cdn_url = cdn.xpath('url/text()')[0]
+    filetype = int(cdn.xpath('dt/text()')[0])
+    vt = cdn.xpath('vt/text()')[0]
+
+    if filetype == 1:
+        type_name = 'flv'
+    elif filetype == 2:
+        type_name = 'mp4'
+    else:
+        type_name = 'unknown'
+
+    clips = []
+    for ci in video.xpath('cl/ci'):
+        clip_size = int(ci.xpath('cs/text()')[0])
+        clip_idx = int(ci.xpath('idx/text()')[0])
+        clips.append({'idx': clip_idx, 'size': clip_size})
+
     print 'File name:', filename
-    print 'File size: %s (%s)' % (fs, fmt_name)
+    print 'Size: %s (%s) in %d clips:' % (filesize, fmt_name, len(clips)),
+    for clip in clips:
+        print clip['size'],
+    print
 
-    video = tree.xpath('/root/vl/vi/ul/ui')[0]
-    video_url = video.xpath('url/text()')[0]
-    vt = video.xpath('vt/text()')[0]
-    print video_url
-    params = {
-        'vid': vid,
-        'otype': 'xml',
-        'platform': PLAYER_PLATFORM,
-        'format': fmt_id,
-        'charge': 0,
-        'ran': random.random(),
-        'filename': filename,
-        'vt': vt,
-        'appver': PLAYER_VERSION,
-        'cKey': load_key(browser),
-        'encryptVer': KLIB_VERSION,
-    }
-    form = urllib.urlencode(params)
-    resp = browser.open('http://vv.video.qq.com/getvkey', data=form)
-    vkey_body = resp.read()
-    tree = etree.fromstring(vkey_body)
-    vkey = tree.xpath('/root/key/text()')[0]
-    level = tree.xpath('/root/level/text()')[0]
-    sr = tree.xpath('/root/sr/text()')[0]
-    br = tree.xpath('/root/br/text()')[0]
-    type_name = os.path.splitext(filename)[1][1:]
-    video_url = '%s%s' % (video_url, filename)
+    user_agent = 'Mozilla/5.0 TencentPlayerVod_1.1.91 tencent_-%s-%s' % (vid, fmt_id)
 
-    download_movie(vid, video_url, fmt_id, fmt_name, type_name, level, br, sr, vkey)
+    fns = os.path.splitext(filename)
+
+    for clip in clips:
+        fn = '%s.%d%s' % (fns[0], clip['idx'], fns[1])
+
+        params = {
+            'vid': vid,
+            'otype': 'xml',
+            'platform': PLAYER_PLATFORM,
+            'format': fmt_id,
+            'charge': 0,
+            'ran': random.random(),
+            'filename': fn,
+            'vt': vt,
+            'appver': PLAYER_VERSION,
+            'cKey': load_key(browser),
+            'encryptVer': KLIB_VERSION,
+        }
+        form = urllib.urlencode(params)
+        #print form
+        resp = browser.open('http://vv.video.qq.com/getvkey', data=form)
+        vkey_body = resp.read()
+        #print vkey_body
+        tree = etree.fromstring(vkey_body)
+
+        vkey = tree.xpath('/root/key/text()')[0]
+        level = tree.xpath('/root/level/text()')[0]
+        sp = tree.xpath('/root/sp/text()')[0]
+
+        clip_size = clip['size']
+        clip_url = '%s%s' % (cdn_url, fn)
+        clip_file = os.path.join(target_dir, fn)
+
+        print 'Clip %s, size %d' % (fn, clip_size), clip_url
+        print 'Save to', clip_file
+        download_clip(clip_file, clip_size, user_agent, clip_url, fmt_name, type_name, fmt_br, sp, vkey, level)
 
 def get_suburl(browser, page_url, target_dir):
     print 'GET', page_url
@@ -173,13 +218,13 @@ def get_suburl(browser, page_url, target_dir):
     cover_info = to_dict(match.group(1))
     match = re.search('var\s+VIDEO_INFO\s?=\s?({[^;]+);', script.text)
     video_info = to_dict(match.group(1))
-    match = re.search('var\s+COVER_EX_INFO\s?=\s?({[^;]+);', script.text)
-    cover_ex_info = to_dict(match.group(1))
-    match = re.search('var\s+LANG_INFO\s?=\s?({[^;]+);', script.text)
-    lang_info = to_dict(match.group(1))
+#    match = re.search('var\s+COVER_EX_INFO\s?=\s?({[^;]+);', script.text)
+#    cover_ex_info = to_dict(match.group(1))
+#    match = re.search('var\s+LANG_INFO\s?=\s?({[^;]+);', script.text)
+#    lang_info = to_dict(match.group(1))
     print video_info['title']
     print 'Length:', video_info['duration']
-    get_videoinfo(browser, video_info['vid'])
+    get_videoinfo(browser, target_dir, video_info['vid'])
 
 def txsp(page_url, target_dir):
     browser = Browser()
