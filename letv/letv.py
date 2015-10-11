@@ -73,7 +73,7 @@ def download_m3u8(browser, playlist, target_file, duration):
     of.close()
 
     print 'Total Size: %d' % dsz
-    print 'Download in %ds, speed %dKB/s' % (total_time, dsz/total_time)
+    print 'Download in %ds, speed %dKB/s' % (total_time, (dsz/1024)/total_time)
 
 def get_playjson(vid, nextvid, target_dir):
     browser = Browser()
@@ -138,6 +138,7 @@ def get_playjson(vid, nextvid, target_dir):
 def letv(page_url, target_dir):
     browser = Browser()
     browser.set_handle_robots(False)
+    browser.set_handle_gzip(True)
     browser.addheaders = [('User-Agent', USER_AGENT)]
 
     resp = browser.open(page_url)
