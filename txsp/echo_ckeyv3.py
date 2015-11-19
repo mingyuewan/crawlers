@@ -70,6 +70,6 @@ if __name__ == '__main__':
     vid = '5O0U5tv6tuV'
     guid = '98B44CED124A2BDF8D201E7EE32BF1D72BE6585D'
     player_version = '3.2.19.336'
-    t = time.time()
     r = random.random()
-    print echo_ckeyv3(vid, guid, t, r, player_version)
+    t = time.time()
+    print echo_ckeyv3(vid, guid, r, t, player_version)
