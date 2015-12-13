@@ -19,7 +19,7 @@ SWF_REFERER = 'http://imgcache.qq.com/tencentvideo_v1/player/TencentPlayer.swf?m
 PLATFORM = 11
 PLAYER_GUID = uuid.uuid4().hex
 PLAYER_PID = uuid.uuid4().hex
-PLAYER_VERSION = '3.2.19.336'
+PLAYER_VERSION = '3.2.19.340'
 KLIB_VERSION = '2.0'
 
 def get_url(browser, page_url, working_dir=None):
@@ -83,6 +83,8 @@ def getvinfo(target_dir, url, vid):
         sl = int(fi.xpath('sl/text()')[0])
         cname = fi.xpath('cname/text()')[0]
         if sl:
+            pass
+        if name == 'fhd':
             slid = fiid
             print 'Selected %s: %s' % (name, cname)
         resolutions[name] = fiid
@@ -115,7 +117,10 @@ def getvinfo(target_dir, url, vid):
             print '%d: %s (%f, %d) %s' % (idx, filename, cd, vclip['fs'], vclip['md5'])
 
             cdn_url = '%s/%s' % (cdn_host, filename)
-            download_vclip(os.path.join(target_dir, filename), cdn_url, key, vclip['br'], vclip['fmt'], vclip['fs'])
+            target_file = os.path.join(target_dir, filename)
+            if os.path.exists(target_file):
+                continue
+            download_vclip(target_file, cdn_url, key, vclip['br'], vclip['fmt'], vclip['fs'])
 
 
 def getvclip(url, vid, vt, resolution, idx):
