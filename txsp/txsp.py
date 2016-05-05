@@ -16,10 +16,10 @@ from echo_ckeyv3 import echo_ckeyv3
 
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:41.0) Gecko/20100101 Firefox/41.0'
 SWF_REFERER = 'http://imgcache.qq.com/tencentvideo_v1/player/TencentPlayer.swf?max_age=86400&v=20151010'
-PLATFORM = 11
+PLATFORM = 10902
 PLAYER_GUID = uuid.uuid4().hex
 PLAYER_PID = uuid.uuid4().hex
-PLAYER_VERSION = '3.2.19.340'
+PLAYER_VERSION = '3.2.19.356'
 KLIB_VERSION = '2.0'
 
 def get_url(browser, page_url, working_dir=None):
@@ -42,27 +42,32 @@ def to_dict(json_object):
             return key
     return eval(json_object, global_dict())
 
+
 def getvinfo(target_dir, url, vid):
     rand = random.random()
     ckey = echo_ckeyv3(vid, PLAYER_GUID, rand, player_version=PLAYER_VERSION, platform=PLATFORM)
     params = {
-        'fp2p': 1,
-        'charge': 0,
+        'newplatform': PLATFORM,
         'guid': PLAYER_GUID,
         'pid': PLAYER_PID,
-        'vid': vid,
-        'platform': PLATFORM,
-        'cKey': ckey,
-        'otype': 'xml', 
-        'fhdswitch': 0,
-        'defnpayver': 1,
-        'appver': PLAYER_VERSION,
-        'ehost': url, 
+        'speed': random.randint(5000, 9000),
         'vids': vid,
-        'encryptVer': '5.4',
-        'utype': 0,
+        'fp2p': 1,
+        'dtype': 3,
+        'linkver': 2,
+        'ehost': url, 
+        'fhdswitch': 0,
+        'cKey': ckey,
+        'vid': vid,
+        'appver': PLAYER_VERSION,
         'ran': '%.16f' % rand,
-        'speed': random.randint(1000, 3000)
+        'utype': 0,
+        'encryptVer': '5.4',
+        'defnpayver': 1,
+        'charge': 0,
+        'ip': '',
+        'otype': 'xml', 
+        'platform': PLATFORM,
     }
     request = urllib2.Request('http://vv.video.qq.com/getvinfo')
     request.add_header('Referer', SWF_REFERER)
@@ -73,6 +78,7 @@ def getvinfo(target_dir, url, vid):
     resp = urllib2.urlopen(request, data=form)
 
     vinfo = resp.read()
+    # print 'vinfo=', vinfo
     tree = etree.fromstring(vinfo)
 
     resolutions = {}
@@ -82,14 +88,13 @@ def getvinfo(target_dir, url, vid):
         fiid = int(fi.xpath('id/text()')[0])
         sl = int(fi.xpath('sl/text()')[0])
         cname = fi.xpath('cname/text()')[0]
-        if sl:
-            pass
-        if name == 'fhd':
+        resolutions[name] = fiid
+        if sl or name == 'fhd':
             slid = fiid
             print 'Selected %s: %s' % (name, cname)
-        resolutions[name] = fiid
+            break
 
-    print resolutions
+#    print 'resolutions=', resolutions
 
     for vi in tree.xpath('/root/vl/vi'):
         video_type = int(vi.xpath('videotype/text()')[0])
@@ -104,23 +109,78 @@ def getvinfo(target_dir, url, vid):
 
         cdn_host = vi.xpath('ul/ui/url/text()')[0]
         vt = vi.xpath('ul/ui/vt/text()')[0]
+        fn = vi.xpath('fn/text()')[0]
+        fs = int(vi.xpath('fs/text()')[0])
 
-        for ci in vi.xpath('cl/ci'):
-            idx = int(ci.xpath('idx/text()')[0])
-            cd = float(ci.xpath('cd/text()')[0])
-
-            vclip = getvclip(url, vid, vt, slid, idx)
-
-            filename = vclip['filename']
-            key = vclip['key']
-
-            print '%d: %s (%f, %d) %s' % (idx, filename, cd, vclip['fs'], vclip['md5'])
-
-            cdn_url = '%s/%s' % (cdn_host, filename)
+        fc = int(vi.xpath('cl/fc/text()')[0])
+        if fc == 0:
+            vkey = getvkey(url, vid, vt, slid, fn)
+            filename = vkey.get('filename')
             target_file = os.path.join(target_dir, filename)
-            if os.path.exists(target_file):
-                continue
-            download_vclip(target_file, cdn_url, key, vclip['br'], vclip['fmt'], vclip['fs'])
+            cdn_url = '%s/%s' % (cdn_host, filename)
+            key = vkey.get('key')
+            br = vkey.get('br')
+            download_vclip(target_file, cdn_url, key, br, video_type, fs)
+
+        else:
+            for ci in vi.xpath('cl/ci'):
+                idx = int(ci.xpath('idx/text()')[0])
+                cd = float(ci.xpath('cd/text()')[0])
+                md5 = ci.xpath('cmd5/text()')[0]
+
+                vclip = getvclip(url, vid, vt, slid, idx)
+
+                filename = vclip['filename']
+                key = vclip['key']
+
+                print '%d: %s (%f, %d) %s' % (idx, filename, cd, vclip['fs'], md5)
+
+                cdn_url = '%s/%s' % (cdn_host, filename)
+                target_file = os.path.join(target_dir, filename)
+                if os.path.exists(target_file):
+                    continue
+                download_vclip(target_file, cdn_url, key, vclip['br'], vclip['fmt'], vclip['fs'])
+
+
+def getvkey(url, vid, vt, resolution, filename):
+
+    rand = random.random()
+    ckey = echo_ckeyv3(vid, PLAYER_GUID, rand, player_version=PLAYER_VERSION, platform=PLATFORM)
+
+    params = {
+        'guid': PLAYER_GUID,
+        'platform': PLATFORM,
+        'vt': vt,
+        'linkver': 2,
+        'vid': vid,
+        'lnk': vid,
+        'charge': 0,
+        'cKey': ckey,
+        'encryptVer': '5.4',
+        'otype': 'xml',
+        'filename': filename,
+        'ehost': url,
+        'format': resolution,
+        'appver': PLAYER_VERSION,
+        'ran': rand,
+    }
+
+    request = urllib2.Request('http://vv.video.qq.com/getvkey')
+    request.add_header('Referer', SWF_REFERER)
+    request.add_header('Content-type', 'application/x-www-form-urlencoded')
+    request.add_header('User-Agent', USER_AGENT)
+    
+    form = urllib.urlencode(params)
+    resp = urllib2.urlopen(request, data=form)
+    resp_body = resp.read()
+    print resp_body
+    tree = etree.fromstring(resp_body)
+    vkey = {
+        'filename': tree.xpath('/root/filename/text()')[0],
+        'br': float(tree.xpath('/root/br/text()')[0]),
+        'key': tree.xpath('/root/key/text()')[0]
+    }
+    return vkey
 
 
 def getvclip(url, vid, vt, resolution, idx):
